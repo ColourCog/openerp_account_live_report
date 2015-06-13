@@ -6,7 +6,7 @@
             <field name="name">account.live.line.tree</field>
             <field name="model">account.live.line</field>
             <field name="arch" type="xml">
-                <tree string="Live Profit/Loss" >
+                <tree string="Live Profit/Loss">
                     <field name="account_id"/>
                     <field name="period_id"/>
                     <field name="debit"/>
@@ -17,7 +17,7 @@
         </record>
 
         <record id="action_account_live_tree" model="ir.actions.act_window">
-            <field name="name">Profit / Loss</field>
+            <field name="name">Profit/Loss</field>
             <field name="res_model">account.live.line</field>
             <field name="view_type">tree</field>
             <field name="view_id" ref="view_account_live_tree"/>
@@ -26,7 +26,7 @@
         <act_window
             id="action_live_move_line_select"
             name="Journal Items"
-            context="{'search_default_account_id': [active_id], 'search_default_period_id': [period_id]}"
+            context="{'search_default_account_id': [account_id], 'search_default_period_id': [period_id]}"
             res_model="account.move.line"
             src_model="account.live.line"/>
 
@@ -34,7 +34,7 @@
         <act_window
             id="action_account_live_items"
             name="Journal Items"
-            context="{'search_default_account_id': [active_id], 'search_default_period_id': [period_id]}"
+            context="{'search_default_account_id': [account_id], 'search_default_period_id': [period_id]}"
             res_model="account.move.line"
             src_model="account.live.line"
             key2="tree_but_open"/>

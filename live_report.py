@@ -1,11 +1,11 @@
 # -*- coding: utf8 -*-
 # live_report.py
 
-from openerp.osv import osv, fields
+from openerp.osv import orm, fields
 import openerp.addons.decimal_precision as dp
 
 
-class account_live_line(osv.osv_memory):
+class account_live_line(orm.TransientModel):
     """
     Profit/Loss line
     """
@@ -32,19 +32,22 @@ class account_live_line(osv.osv_memory):
             res[live.id]['balance'] = res[live.id]['debit'] - res[live.id]['credit']
         return res
 
+    _sql_constraints = [
+        ('live_line_unique', 'unique (account_id, period_id)', 'Period must be unique per Account !'),
+    ]
 
-    _colums = {
-        "name": fields.char("Account"),
+    _columns = {
         "account_id": fields.many2one('account.account', 'Account', required=True),
         'period_id': fields.many2one('account.period', 'Period', required=True),
-        'credit': fields.function(_get_amounts, digits_compute=dp.get_precision('Account'), string='Credit'),
-        'debit': fields.function(_get_amounts, digits_compute=dp.get_precision('Account'), string='Debit'),
-        'balance': fields.function(_get_amounts, digits_compute=dp.get_precision('Account'), string='Balance'),
+        'credit': fields.function(_get_amounts, multi="amounts", digits_compute=dp.get_precision('Account'), string='Credit'),
+        'debit': fields.function(_get_amounts, multi="amounts", digits_compute=dp.get_precision('Account'), string='Debit'),
+        'balance': fields.function(_get_amounts, multi="amounts", digits_compute=dp.get_precision('Account'), string='Balance'),
     }
+
 account_live_line()
 
 
-class account_live_chart(osv.osv_memory):
+class account_live_chart(orm.TransientModel):
     """
     For Chart of Accounts
     """

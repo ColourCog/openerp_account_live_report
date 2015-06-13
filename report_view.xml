@@ -2,7 +2,45 @@
 <openerp>
     <data>
 
-        <record id="view_account_chart" model="ir.ui.view">
+        <record id="view_account_live_tree" model="ir.ui.view">
+            <field name="name">account.live.line.tree</field>
+            <field name="model">account.live.line</field>
+            <field name="arch" type="xml">
+                <tree string="Live Profit/Loss" toolbar="1" >
+                    <field name="account_id"/>
+                    <field name="period_id"/>
+                    <field name="debit"/>
+                    <field name="credit"/>
+                    <field name="balance"/>
+                </tree>
+            </field>
+        </record>
+
+        <record id="action_account_live_tree" model="ir.actions.act_window">
+            <field name="name">Profit / Loss</field>
+            <field name="res_model">account.live.line</field>
+            <field name="view_type">tree</field>
+            <field name="view_id" ref="view_account_live_tree"/>
+        </record>
+
+        <act_window
+            id="action_live_move_line_select"
+            name="Journal Items"
+            context="{'search_default_account_id': [active_id], 'search_default_period_id': [period_id]}"
+            res_model="account.move.line"
+            src_model="account.live.line"/>
+
+        <!-- Enable drill-down from Chart Of Accounts tree view -->
+        <act_window
+            id="action_account_live_items"
+            name="Journal Items"
+            context="{'search_default_account_id': [active_id], 'search_default_period_id': [period_id]}"
+            res_model="account.move.line"
+            src_model="account.live.line"
+            key2="tree_but_open"/>
+
+
+        <record id="view_account_live_chart" model="ir.ui.view">
             <field name="name">account.live.chart.form</field>
             <field name="model">account.live.chart</field>
             <field name="arch" type="xml">
@@ -30,5 +68,17 @@
         </record>
 
 
+        <record id="action_account_live_chart" model="ir.actions.act_window">
+            <field name="name">Live Profit/Loss</field>
+            <field name="res_model">account.live.chart</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form</field>
+            <field name="view_id" ref="view_account_live_chart"/>
+            <field name="target">new</field>
+        </record>
+
+        <menuitem icon="STOCK_INDENT" action="action_account_live_chart"
+            id="menu_action_account_tree2"
+            parent="account.menu_finance_charts" />
     </data>
 </openerp>

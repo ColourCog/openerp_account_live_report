@@ -41,9 +41,6 @@ class account_live_line(osv.osv_memory):
         'debit': fields.function(_get_amounts, digits_compute=dp.get_precision('Account'), string='Debit'),
         'balance': fields.function(_get_amounts, digits_compute=dp.get_precision('Account'), string='Balance'),
     }
-    _sql_constraints = [
-        ('account_live_unique', 'unique (account_id, period_id)', 'Period must be unique per Account !'),
-    ]
 account_live_line()
 
 

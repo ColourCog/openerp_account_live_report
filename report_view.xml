@@ -6,7 +6,7 @@
             <field name="name">account.live.line.tree</field>
             <field name="model">account.live.line</field>
             <field name="arch" type="xml">
-                <tree string="Live Profit/Loss" toolbar="1" >
+                <tree string="Live Profit/Loss" >
                     <field name="account_id"/>
                     <field name="period_id"/>
                     <field name="debit"/>

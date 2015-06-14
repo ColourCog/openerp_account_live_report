@@ -169,7 +169,8 @@ class account_live_chart(osv.osv_memory):
             result['periods'] = period_obj.build_ctx_periods(cr, uid, period_from, period_to)
         self._create_live_lines(cr, uid, result['periods'], context=context)
         result['context'] = str({'fiscalyear': fiscalyear_id, 'periods': result['periods'],
-                                    'state': data['target_move'] })
+                                    'state': data['target_move'],
+                                    'search_default_groupby_account': 1})
         if fiscalyear_id:
             result['name'] += ':' + fy_obj.read(cr, uid, [fiscalyear_id], context=context)[0]['code']
         return result

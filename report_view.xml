@@ -6,7 +6,7 @@
             <field name="name">account.live.line.tree</field>
             <field name="model">account.live.line</field>
             <field name="arch" type="xml">
-                <tree string="Live Profit/Loss">
+                <tree string="Live Profit/Loss" create="false">
                     <field name="account_id"/>
                     <field name="period_id"/>
                     <field name="debit"/>
@@ -17,7 +17,7 @@
         </record>
 
         <record id="view_account_live_filter" model="ir.ui.view"> 
-            <field name="name">account.live.line.filter</field>
+            <field name="name">account.live.line.search</field>
             <field name="model">account.live.line</field>
             <field name="arch" type="xml"> 
             <search string="Search Accounts"> 
@@ -25,7 +25,7 @@
               <field name="period_id"/>
               <separator/>
               <group expand="0" string="Group By..." > 
-                <filter string="Account" name="account_id" domain="[]" context="{'group_by':'account_id'}"/>
+                <filter string="Account" name="groupby_account" domain="[]" context="{'group_by':'account_id'}"/>
               </group> 
             </search> 
           </field> 
@@ -35,29 +35,34 @@
         <record id="action_account_live_tree" model="ir.actions.act_window">
             <field name="name">Profit/Loss</field>
             <field name="res_model">account.live.line</field>
-            <field name="view_type">form</field>
-            <field name="view_mode">tree,form</field>
             <field name="search_view_id" ref="view_account_live_filter"/> 
-            <field name="context">{'search_default_group_account_id': 1}</field>
+            <field name="context">{'search_default_groupby_account': 1}</field>
             <field name="view_id" ref="view_account_live_tree"/>
         </record>
-
-        <act_window
-            id="action_live_move_line_select"
-            name="Journal Items"
-            context="{'search_default_account_id': [account_id], 'search_default_period_id': [period_id]}"
-            res_model="account.move.line"
-            src_model="account.live.line"/>
 
         <!-- Enable drill-down from Chart Of Accounts tree view -->
         <act_window
             id="action_account_live_items"
             name="Journal Items"
-            context="{'search_default_account_id': [account_id], 'search_default_period_id': [period_id]}"
+            context="{'account_id': account_id, 'search_default_account_id': account_id, 'period_id': period_id, 'search_default_period_id': period_id}"
             res_model="account.move.line"
             src_model="account.live.line"
             key2="tree_but_open"/>
 
+        <record id="action_live_entries_tree" model="ir.actions.act_window">
+            <field name="name">Journal Entries</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">account.move.line</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form</field>
+            <field name="context">{'account_id':account_id, 'search_default_account_id':account_id}</field>
+        </record>
+        <record id="ir_account_live_line_open" model="ir.values">
+            <field eval="'tree_but_open'" name="key2"/>
+            <field eval="'account.live.line'" name="model"/>
+            <field name="name">Journal Entries for Account</field>
+            <field eval="'ir.actions.act_window,%d'%action_live_entries_tree" name="value"/>
+        </record>
 
         <record id="view_account_live_chart" model="ir.ui.view">
             <field name="name">account.live.chart.form</field>
@@ -97,7 +102,7 @@
         </record>
 
         <menuitem icon="STOCK_INDENT" action="action_account_live_chart"
-            id="menu_action_account_tree2"
+            id="menu_action_account_live_tree2"
             parent="account.menu_finance_charts" />
     </data>
 </openerp>

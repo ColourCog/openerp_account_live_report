@@ -16,10 +16,29 @@
             </field>
         </record>
 
+        <record id="view_account_live_filter" model="ir.ui.view"> 
+            <field name="name">account.live.line.filter</field>
+            <field name="model">account.live.line</field>
+            <field name="arch" type="xml"> 
+            <search string="Search Accounts"> 
+              <field name="account_id"/>
+              <field name="period_id"/>
+              <separator/>
+              <group expand="0" string="Group By..." > 
+                <filter string="Account" name="account_id" domain="[]" context="{'group_by':'account_id'}"/>
+              </group> 
+            </search> 
+          </field> 
+        </record> 
+    
+        
         <record id="action_account_live_tree" model="ir.actions.act_window">
             <field name="name">Profit/Loss</field>
             <field name="res_model">account.live.line</field>
-            <field name="view_type">tree</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form</field>
+            <field name="search_view_id" ref="view_account_live_filter"/> 
+            <field name="context">{'search_default_group_account_id': 1}</field>
             <field name="view_id" ref="view_account_live_tree"/>
         </record>
 

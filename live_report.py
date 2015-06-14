@@ -1,35 +1,47 @@
 # -*- coding: utf8 -*-
 # live_report.py
 
-from openerp.osv import orm, fields
+from openerp.osv import osv, fields
 import openerp.addons.decimal_precision as dp
 
+class account_account(osv.osv):
+    _inherit = "account.account"
+    """
+    we need access to the __compute method
+    """
+    
+    def out_compute(self, cr, uid, ids, field_names, arg=None, context=None,
+                  query='', query_params=()): 
+        return self.__compute( cr, uid, ids, field_names, arg, context,
+                  query, query_params)
+                  
+account_account()
 
-class account_live_line(orm.TransientModel):
+
+class account_live_line(osv.osv_memory):
     """
     Profit/Loss line
     """
     _name = "account.live.line"
     _description = "Account Live line"
+    _order = 'account_id'
 
     def _get_amounts(self, cr, uid, ids, name, args, context=None):
         """
         Compute amounts for account during period
         """
-        line_obj = self.pool.get('account.move.line')
+        if not context:
+            context = {}
+        account_obj = self.pool.get('account.account')
         res = {}
         for live in self.browse(cr, uid, ids, context=context):
+            context.update({'periods': [live.period_id.id]})
             res[live.id] = {
-                'debit': 0.0,
-                'credit': 0.0,
-                'balance': 0.0
+                'debit': sums.get(live.account_id.id, False) and sums[live.account_id.id]['debit'] or 0.0,
+                'credit': sums.get(live.account_id.id, False) and sums[live.account_id.id]['credit'] or 0.0,
+                'balance': sums.get(live.account_id.id, False) and sums[live.account_id.id]['balance'] or 0.0,
             }
-            line_ids = line_obj.search(cr, uid, [("account_id", "=", live.account_id.id), ("period_id", "=", live.period_id.id)])
-            lines = line_obj.browse(cr, uid, line_ids)
-            for line in lines:
-                res[live.id]['credit'] += line.credit
-                res[live.id]['debit'] += line.debit
-            res[live.id]['balance'] = res[live.id]['debit'] - res[live.id]['credit']
+            res[live.id]['active'] = (res[live.id]['credit'] > 0 and res[live.id]['debit'] > 0 ) and True or False
         return res
 
     _sql_constraints = [
@@ -37,17 +49,17 @@ class account_live_line(orm.TransientModel):
     ]
 
     _columns = {
-        "account_id": fields.many2one('account.account', 'Account', required=True),
-        'period_id': fields.many2one('account.period', 'Period', required=True),
-        'credit': fields.function(_get_amounts, multi="amounts", digits_compute=dp.get_precision('Account'), string='Credit'),
-        'debit': fields.function(_get_amounts, multi="amounts", digits_compute=dp.get_precision('Account'), string='Debit'),
-        'balance': fields.function(_get_amounts, multi="amounts", digits_compute=dp.get_precision('Account'), string='Balance'),
+        "account_id": fields.many2one('account.account', 'Account', required=True, ondelete="cascade"),
+        'period_id': fields.many2one('account.period', 'Period', required=True, ondelete="cascade"),
+        'credit': fields.float(string='Credit', digits_compute=dp.get_precision('Account')),
+        'debit': fields.float(string='Debit', digits_compute=dp.get_precision('Account')),
+        'balance': fields.float(string='Balance', digits_compute=dp.get_precision('Account')),
     }
 
 account_live_line()
 
 
-class account_live_chart(orm.TransientModel):
+class account_live_chart(osv.osv_memory):
     """
     For Chart of Accounts
     """
@@ -96,6 +108,41 @@ class account_live_chart(orm.TransientModel):
             res['value'] = {'period_from': False, 'period_to': False}
         return res
 
+    def _create_live_lines(self, cr, uid, period_ids, context=None):
+        """
+        Actually create the lines.
+        """
+        ctx = context.copy()
+        
+        account_obj = self.pool.get('account.account')
+        period_obj = self.pool.get('account.period')
+        live_obj = self.pool.get('account.live.line')
+        account_ids = account_obj.search(cr, uid, [("type","<>","view")])
+        # first delete all
+        to_delete = live_obj.search(cr, uid, [], context=ctx)
+        live_obj.unlink(cr, uid, to_delete, context=ctx)
+        # now create
+        live_list = []
+        for period_id in period_ids:
+            ctx.update({'periods':[period_id]})
+            sums = account_obj.out_compute(cr, uid, account_ids, ['debit','credit','balance'], context=ctx)
+            for account_id in account_ids:
+                o = {
+                    "account_id": account_id,
+                    "period_id": period_id,
+                    'debit': sums.get(account_id, False) and sums[account_id]['debit'] or 0.0,
+                    'credit': sums.get(account_id, False) and sums[account_id]['credit'] or 0.0,
+                    'balance': sums.get(account_id, False) and sums[account_id]['balance'] or 0.0,
+                }
+                if o['credit'] > 0 and o['debit'] > 0 :
+                    live_list.append(o)
+
+        return [live_obj.create(cr, uid, o, context=context) for o in live_list]
+
+
+
+
+
     def account_live_chart_open_window(self, cr, uid, ids, context=None):
         """
         Opens chart of Live reports
@@ -120,8 +167,9 @@ class account_live_chart(orm.TransientModel):
             period_from = data.get('period_from', False) and data['period_from'][0] or False
             period_to = data.get('period_to', False) and data['period_to'][0] or False
             result['periods'] = period_obj.build_ctx_periods(cr, uid, period_from, period_to)
-        result['context'] = str({'fiscalyear': fiscalyear_id, 'periods': result['periods'], \
-                                    'state': data['target_move']})
+        self._create_live_lines(cr, uid, result['periods'], context=context)
+        result['context'] = str({'fiscalyear': fiscalyear_id, 'periods': result['periods'],
+                                    'state': data['target_move'] })
         if fiscalyear_id:
             result['name'] += ':' + fy_obj.read(cr, uid, [fiscalyear_id], context=context)[0]['code']
         return result

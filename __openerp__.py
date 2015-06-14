@@ -22,7 +22,6 @@ Features:
 * Balance Sheet
     """,
     "data" : [
-      "security/ir.model.access.csv",
       'report_view.xml',
     ],
     "application": False,

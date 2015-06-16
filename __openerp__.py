@@ -21,6 +21,12 @@ Features:
 * Profit/Loss
 * Balance Sheet
     """,
+    'js': [
+        'static/src/js/live_wizard.js',
+    ],
+    'qweb' : [
+        "static/src/xml/live_wizard.xml",
+    ],
     "data" : [
       'report_view.xml',
     ],

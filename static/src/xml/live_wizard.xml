@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<templates id="template" xml:space="preserve">
+    
+    <t t-name="LaunchWizard">
+        <div class="oe_live_wizard">
+            <div>
+                <div>
+                    <button class="oe_launch_wizard oe_button oe_highlight" href="javascript:void(0)">&lt;</button>
+                </div>
+            </div>
+        </div>
+    </t>
+
+</templates>

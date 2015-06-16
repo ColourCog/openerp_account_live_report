@@ -3,6 +3,33 @@
 
 from openerp.osv import osv, fields
 import openerp.addons.decimal_precision as dp
+import logging
+_logger = logging.getLogger(__name__)
+
+
+class account_move_line(osv.osv):
+    _inherit = "account.move.line"
+
+    def fields_view_get(self, cr, uid, view_id=None, view_type=False, context=None, toolbar=False, submenu=False):
+        if context is None: context = {}
+        if context.get('default_live_id', False):
+            obj = self.pool.get('account.live.line').browse(
+                        cr, uid, context.get('default_live_id'), 
+                        context=context)
+            context.update({
+                'default_account_id':obj.account_id.id,
+                'search_default_account_id':[obj.account_id.id],
+                'account_id':obj.account_id.id,
+                'default_period_id':obj.period_id.id,
+                'search_default_period_id':[obj.period_id.id],
+                'period_id':obj.period_id.id,
+            })
+        _logger.warning("context is %s " % (str(context)))                
+        res = super(account_move_line, self).fields_view_get(cr, uid, view_id=view_id, view_type=view_type, context=context, toolbar=toolbar, submenu=submenu)
+        return res
+
+account_move_line()
+
 
 class account_account(osv.osv):
     _inherit = "account.account"
@@ -55,6 +82,14 @@ class account_live_line(osv.osv_memory):
         'debit': fields.float(string='Debit', digits_compute=dp.get_precision('Account')),
         'balance': fields.float(string='Balance', digits_compute=dp.get_precision('Account')),
     }
+
+    def fields_view_get(self, cr, uid, view_id=None, view_type=False, context=None, toolbar=False, submenu=False):
+        act_obj = self.pool.get('ir.actions.act_window')
+        mod_obj = self.pool.get('ir.model.data')
+        res = super(account_live_line, self).fields_view_get(cr, uid, view_id=view_id, view_type=view_type, context=context, toolbar=toolbar, submenu=submenu)
+        if context is None: context = {}
+        _logger.warning("context is %s " % (str(context)))                
+        return res
 
 account_live_line()
 
@@ -167,7 +202,9 @@ class account_live_chart(osv.osv_memory):
             period_from = data.get('period_from', False) and data['period_from'][0] or False
             period_to = data.get('period_to', False) and data['period_to'][0] or False
             result['periods'] = period_obj.build_ctx_periods(cr, uid, period_from, period_to)
+        
         self._create_live_lines(cr, uid, result['periods'], context=context)
+        
         result['context'] = str({'fiscalyear': fiscalyear_id, 'periods': result['periods'],
                                     'state': data['target_move'],
                                     'search_default_groupby_account': 1})

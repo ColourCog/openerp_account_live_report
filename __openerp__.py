@@ -1,17 +1,18 @@
 {
-    "name" : "Accounting Live Reports",
-    "version" : "0.1",
-    "category" : "Accounting",
+    "name": "Accounting Live Reports",
+    "version": "0.1",
+    "category": "Accounting",
     "sequence": 60,
-    "complexity" : "normal",
-    "author" : "ColourCog.com",
-    "website" : "http://colourcog.com",
-    "depends" : [
+    "complexity": "normal",
+    "author": "ColourCog.com",
+    "website": "http://colourcog.com",
+    "depends": [
         "base",
+        "web",
         "account_accountant",
     ],
-    "summary" : "Generate realtime accounting reports",
-    "description" : """
+    "summary": "Generate realtime accounting reports",
+    "description": """
 Accounting Live Reports
 =======================
 This module creates computed accounting snapshots.
@@ -21,16 +22,15 @@ Features:
 * Profit/Loss
 * Balance Sheet
     """,
+    "data": [
+      'report_view.xml',
+    ],
     'js': [
         'static/src/js/live_wizard.js',
     ],
-    'qweb' : [
+    'qweb': [
         "static/src/xml/live_wizard.xml",
-    ],
-    "data" : [
-      'report_view.xml',
     ],
     "application": False,
     "installable": True
 }
-

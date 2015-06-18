@@ -7,41 +7,17 @@ import logging
 _logger = logging.getLogger(__name__)
 
 
-class account_move_line(osv.osv):
-    _inherit = "account.move.line"
-
-    def fields_view_get(self, cr, uid, view_id=None, view_type=False, context=None, toolbar=False, submenu=False):
-        if context is None: context = {}
-        if context.get('default_live_id', False):
-            obj = self.pool.get('account.live.line').browse(
-                        cr, uid, context.get('default_live_id'), 
-                        context=context)
-            context.update({
-                'default_account_id':obj.account_id.id,
-                'search_default_account_id':[obj.account_id.id],
-                'account_id':obj.account_id.id,
-                'default_period_id':obj.period_id.id,
-                'search_default_period_id':[obj.period_id.id],
-                'period_id':obj.period_id.id,
-            })
-        _logger.warning("context is %s " % (str(context)))                
-        res = super(account_move_line, self).fields_view_get(cr, uid, view_id=view_id, view_type=view_type, context=context, toolbar=toolbar, submenu=submenu)
-        return res
-
-account_move_line()
-
-
 class account_account(osv.osv):
     _inherit = "account.account"
     """
     we need access to the __compute method
     """
-    
+
     def out_compute(self, cr, uid, ids, field_names, arg=None, context=None,
-                  query='', query_params=()): 
+                      query='', query_params=()):
         return self.__compute( cr, uid, ids, field_names, arg, context,
-                  query, query_params)
-                  
+                              query, query_params)
+
 account_account()
 
 
@@ -49,47 +25,54 @@ class account_live_line(osv.osv_memory):
     """
     Profit/Loss line
     """
-    _name = "account.live.line"
+    _name        = "account.live.line"
     _description = "Account Live line"
-    _order = 'account_id'
+    _order       = 'account_id'
 
-    def _get_amounts(self, cr, uid, ids, name, args, context=None):
-        """
-        Compute amounts for account during period
-        """
+    def _get_move_lines(self, cr, uid, ids, name, args, context):
+        """retrieve all move lines related to this live period
+        and account """
+        move_line_obj = self.pool.get('account.move.line')
         if not context:
             context = {}
-        account_obj = self.pool.get('account.account')
         res = {}
         for live in self.browse(cr, uid, ids, context=context):
-            context.update({'periods': [live.period_id.id]})
-            res[live.id] = {
-                'debit': sums.get(live.account_id.id, False) and sums[live.account_id.id]['debit'] or 0.0,
-                'credit': sums.get(live.account_id.id, False) and sums[live.account_id.id]['credit'] or 0.0,
-                'balance': sums.get(live.account_id.id, False) and sums[live.account_id.id]['balance'] or 0.0,
-            }
-            res[live.id]['active'] = (res[live.id]['credit'] > 0 and res[live.id]['debit'] > 0 ) and True or False
+            # get the move ids for this period
+            move_line_ids = move_line_obj.search(cr, uid,
+                                [('period_id', '=', live.period_id.id)],
+                                context=context)
+            move_lines = move_line_obj.browse(cr, uid, move_line_ids, context=context)
+            # filter out moves that don't include live's account in the
+            # transaction
+            in_list = []
+            for line in move_lines:
+                if line.account_id.id == live.account_id.id:
+                    if line.move_id.id not in in_list:
+                        in_list.append(line.move_id.id)
+            res[live.id] = move_line_obj.search(cr, uid,
+                                [('move_id', 'in', in_list)],
+                                context=context)
         return res
+
+    _columns = {
+        "account_id": fields.many2one('account.account', 'Account',
+                                required=True, ondelete="cascade"),
+        'period_id': fields.many2one('account.period', 'Period',
+                                required=True, ondelete="cascade"),
+        'credit': fields.float(string='Credit',
+                                digits_compute=dp.get_precision('Account')),
+        'debit': fields.float(string='Debit',
+                                digits_compute=dp.get_precision('Account')),
+        'balance': fields.float(string='Balance',
+                                digits_compute=dp.get_precision('Account')),
+        'move_line_ids': fields.function(_get_move_lines, type='one2many',
+                                relation='account.move.line',
+                                string="Journal Entries"),
+    }
 
     _sql_constraints = [
         ('live_line_unique', 'unique (account_id, period_id)', 'Period must be unique per Account !'),
     ]
-
-    _columns = {
-        "account_id": fields.many2one('account.account', 'Account', required=True, ondelete="cascade"),
-        'period_id': fields.many2one('account.period', 'Period', required=True, ondelete="cascade"),
-        'credit': fields.float(string='Credit', digits_compute=dp.get_precision('Account')),
-        'debit': fields.float(string='Debit', digits_compute=dp.get_precision('Account')),
-        'balance': fields.float(string='Balance', digits_compute=dp.get_precision('Account')),
-    }
-
-    def fields_view_get(self, cr, uid, view_id=None, view_type=False, context=None, toolbar=False, submenu=False):
-        act_obj = self.pool.get('ir.actions.act_window')
-        mod_obj = self.pool.get('ir.model.data')
-        res = super(account_live_line, self).fields_view_get(cr, uid, view_id=view_id, view_type=view_type, context=context, toolbar=toolbar, submenu=submenu)
-        if context is None: context = {}
-        _logger.warning("context is %s " % (str(context)))                
-        return res
 
 account_live_line()
 
@@ -101,19 +84,20 @@ class account_live_chart(osv.osv_memory):
     _name = "account.live.chart"
     _description = "Account Live Line chart"
     _columns = {
-        'fiscalyear': fields.many2one('account.fiscalyear', \
-                                    'Fiscal year',  \
+        'fiscalyear': fields.many2one('account.fiscalyear',
+                                    'Fiscal year',
                                     help='Keep empty for all open fiscal years'),
         'period_from': fields.many2one('account.period', 'Start period'),
         'period_to': fields.many2one('account.period', 'End period'),
         'target_move': fields.selection([('posted', 'All Posted Entries'),
-                                         ('all', 'All Entries'),
-                                        ], 'Target Moves', required=True),
+                                         ('all', 'All Entries'),],
+                                         'Target Moves', required=True),
     }
 
     def _get_fiscalyear(self, cr, uid, context=None):
         """Return default Fiscalyear value"""
-        return self.pool.get('account.fiscalyear').find(cr, uid, context=context)
+        return self.pool.get('account.fiscalyear').find(
+                                        cr, uid, context=context)
 
     def onchange_fiscalyear(self, cr, uid, ids, fiscalyear_id=False, context=None):
         res = {}
@@ -148,9 +132,8 @@ class account_live_chart(osv.osv_memory):
         Actually create the lines.
         """
         ctx = context.copy()
-        
+
         account_obj = self.pool.get('account.account')
-        period_obj = self.pool.get('account.period')
         live_obj = self.pool.get('account.live.line')
         account_ids = account_obj.search(cr, uid, [("type","<>","view")])
         # first delete all
@@ -159,8 +142,10 @@ class account_live_chart(osv.osv_memory):
         # now create
         live_list = []
         for period_id in period_ids:
-            ctx.update({'periods':[period_id]})
-            sums = account_obj.out_compute(cr, uid, account_ids, ['debit','credit','balance'], context=ctx)
+            ctx.update({'periods': [period_id]})
+            sums = account_obj.out_compute(cr, uid, account_ids,
+                                            ['debit','credit','balance'],
+                                            context=ctx)
             for account_id in account_ids:
                 o = {
                     "account_id": account_id,
@@ -202,9 +187,9 @@ class account_live_chart(osv.osv_memory):
             period_from = data.get('period_from', False) and data['period_from'][0] or False
             period_to = data.get('period_to', False) and data['period_to'][0] or False
             result['periods'] = period_obj.build_ctx_periods(cr, uid, period_from, period_to)
-        
+
         self._create_live_lines(cr, uid, result['periods'], context=context)
-        
+
         result['context'] = str({'fiscalyear': fiscalyear_id, 'periods': result['periods'],
                                     'state': data['target_move'],
                                     'search_default_groupby_account': 1})
@@ -218,4 +203,3 @@ class account_live_chart(osv.osv_memory):
     }
 
 account_live_chart()
-

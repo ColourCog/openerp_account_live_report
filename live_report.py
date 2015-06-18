@@ -154,7 +154,7 @@ class account_live_chart(osv.osv_memory):
                     'credit': sums.get(account_id, False) and sums[account_id]['credit'] or 0.0,
                     'balance': sums.get(account_id, False) and sums[account_id]['balance'] or 0.0,
                 }
-                if o['credit'] > 0 and o['debit'] > 0 :
+                if o['credit'] > 0 or o['debit'] > 0 :
                     live_list.append(o)
 
         return [live_obj.create(cr, uid, o, context=context) for o in live_list]

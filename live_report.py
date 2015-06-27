@@ -29,7 +29,31 @@ class account_live_line(osv.osv_memory):
     _description = "Account Live line"
     _order       = 'account_id'
 
-    def _get_move_lines(self, cr, uid, ids, name, args, context):
+    def _get_sums(self, cr, uid, ids, names, args, context):
+        account_obj = self.pool.get('account.account')
+        if not context:
+            context = {}
+        res = {}
+        fields = ['credit', 'debit', 'balance']
+        for live in self.browse(cr, uid, ids, context=context):
+            ctx = context.copy()
+            # get the move ids for this date range
+            ctx.update({                'date_from': live.date_from,
+                'date_to': live.date_to,
+                'state': live.state,
+                'chart_account_id': live.account_id.id,
+            })
+            sums = account_obj.out_compute(
+                    cr, 
+                    uid, 
+                    [live.account_id.id],
+                    fields,
+                    context=ctx)
+            res[live.id] = {n:sums.get(n) for n in fields}  
+        return res
+        
+        
+    def _get_move_lines(self, cr, uid, ids, names, args, context):
         """retrieve all move lines related to this live period
         and account """
         move_line_obj = self.pool.get('account.move.line')
@@ -37,42 +61,48 @@ class account_live_line(osv.osv_memory):
             context = {}
         res = {}
         for live in self.browse(cr, uid, ids, context=context):
-            # get the move ids for this period
-            move_line_ids = move_line_obj.search(cr, uid,
-                                [('period_id', '=', live.period_id.id)],
-                                context=context)
-            move_lines = move_line_obj.browse(cr, uid, move_line_ids, context=context)
-            # filter out moves that don't include live's account in the
-            # transaction
-            in_list = []
-            for line in move_lines:
-                if line.account_id.id == live.account_id.id:
-                    if line.move_id.id not in in_list:
-                        in_list.append(line.move_id.id)
-            res[live.id] = move_line_obj.search(cr, uid,
-                                [('move_id', 'in', in_list)],
-                                context=context)
+            ctx = context.copy()
+            # get the move ids for this date range
+            ctx.update({
+                'date_from': live.date_from,
+                'date_to': live.date_to,
+                'state': live.state,
+                'chart_account_id': live.account_id.id,
+            })
+            res[live.id] = move_line_obj._query_get(cr, uid, context=ctx)
         return res
 
     _columns = {
         "account_id": fields.many2one('account.account', 'Account',
                                 required=True, ondelete="cascade"),
-        'period_id': fields.many2one('account.period', 'Period',
-                                required=True, ondelete="cascade"),
-        'credit': fields.float(string='Credit',
-                                digits_compute=dp.get_precision('Account')),
-        'debit': fields.float(string='Debit',
-                                digits_compute=dp.get_precision('Account')),
-        'balance': fields.float(string='Balance',
-                                digits_compute=dp.get_precision('Account')),
-        'move_line_ids': fields.function(_get_move_lines, type='one2many',
-                                relation='account.move.line',
-                                string="Journal Entries"),
+        'date_from': fields.date('From',required=True),
+        'date_to': fields.date('To',required=True),
+        'state': fields.char('State',required=True),
+        'credit': fields.function(
+                _get_sums,
+                type="float",
+                digits_compute=dp.get_precision('Account')
+                string='Credit',
+                multi="sums"),
+        'debit': fields.function(
+                _get_sums,
+                type="float",
+                digits_compute=dp.get_precision('Account')
+                string='Debit',
+                multi="sums"),
+        'balance': fields.function(
+                _get_sums,
+                type="float",
+                digits_compute=dp.get_precision('Account')
+                string='Balance',
+                multi="sums"),
+        'move_line_ids': fields.function(
+                _get_move_lines, 
+                type='one2many',
+                relation='account.move.line',
+                string="Journal Entries"),
     }
 
-    _sql_constraints = [
-        ('live_line_unique', 'unique (account_id, period_id)', 'Period must be unique per Account !'),
-    ]
 
 account_live_line()
 
@@ -127,7 +157,7 @@ class account_live_chart(osv.osv_memory):
             res['value'] = {'period_from': False, 'period_to': False}
         return res
 
-    def _create_live_lines(self, cr, uid, period_ids, context=None):
+    def _create_live_lines(self, cr, uid, dates, context=None):
         """
         Actually create the lines.
         """

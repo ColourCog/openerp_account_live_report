@@ -25,6 +25,9 @@ Features:
     "data": [
       'report_view.xml',
     ],
+    'css': [
+        'static/src/css/live_wizard.css',
+    ],
     'js': [
         'static/src/js/live_wizard.js',
     ],

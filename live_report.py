@@ -29,7 +29,7 @@ class account_live_line(osv.osv_memory):
     _description = "Account Live line"
     _order       = 'account_id'
 
-    def _get_move_lines(self, cr, uid, ids, name, args, context):
+    def _get_move_lines(self, cr, uid, ids, names, args, context):
         """retrieve all move lines related to this live period
         and account """
         move_line_obj = self.pool.get('account.move.line')
@@ -37,21 +37,20 @@ class account_live_line(osv.osv_memory):
             context = {}
         res = {}
         for live in self.browse(cr, uid, ids, context=context):
-            # get the move ids for this period
-            move_line_ids = move_line_obj.search(cr, uid,
-                                [('period_id', '=', live.period_id.id)],
-                                context=context)
-            move_lines = move_line_obj.browse(cr, uid, move_line_ids, context=context)
-            # filter out moves that don't include live's account in the
-            # transaction
-            in_list = []
-            for line in move_lines:
-                if line.account_id.id == live.account_id.id:
-                    if line.move_id.id not in in_list:
-                        in_list.append(line.move_id.id)
-            res[live.id] = move_line_obj.search(cr, uid,
-                                [('move_id', 'in', in_list)],
-                                context=context)
+            ctx = context.copy()
+            # get the move ids for this date range
+            ctx.update({
+                'periods': [live.period_id],
+                'state': live.state,
+                'chart_account_id': live.account_id.id,
+            })
+            sql = """SELECT l.id
+                        FROM account_move_line l 
+                            WHERE """ + move_line_obj._query_get(cr, uid, context=ctx)
+            cr.execute(sql)
+            
+            res[live.id] = dict(cr.fetchall())
+            
         return res
 
     _columns = {
@@ -59,6 +58,7 @@ class account_live_line(osv.osv_memory):
                                 required=True, ondelete="cascade"),
         'period_id': fields.many2one('account.period', 'Period',
                                 required=True, ondelete="cascade"),
+        'state': fields.char(string='State'),
         'credit': fields.float(string='Credit',
                                 digits_compute=dp.get_precision('Account')),
         'debit': fields.float(string='Debit',
@@ -127,7 +127,7 @@ class account_live_chart(osv.osv_memory):
             res['value'] = {'period_from': False, 'period_to': False}
         return res
 
-    def _create_live_lines(self, cr, uid, period_ids, context=None):
+    def _create_live_lines(self, cr, uid, period_ids, state, context=None):
         """
         Actually create the lines.
         """
@@ -150,6 +150,7 @@ class account_live_chart(osv.osv_memory):
                 o = {
                     "account_id": account_id,
                     "period_id": period_id,
+                    "state": state,
                     'debit': sums.get(account_id, False) and sums[account_id]['debit'] or 0.0,
                     'credit': sums.get(account_id, False) and sums[account_id]['credit'] or 0.0,
                     'balance': sums.get(account_id, False) and sums[account_id]['balance'] or 0.0,
@@ -188,7 +189,12 @@ class account_live_chart(osv.osv_memory):
             period_to = data.get('period_to', False) and data['period_to'][0] or False
             result['periods'] = period_obj.build_ctx_periods(cr, uid, period_from, period_to)
 
-        self._create_live_lines(cr, uid, result['periods'], context=context)
+        self._create_live_lines(
+                cr, 
+                uid, 
+                result['periods'], 
+                data['target_move'], 
+                context=context)
 
         result['context'] = str({'fiscalyear': fiscalyear_id, 'periods': result['periods'],
                                     'state': data['target_move'],

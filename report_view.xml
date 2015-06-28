@@ -21,7 +21,16 @@
       <field name="model">account.live.line</field>
       <field name="arch" type="xml">
         <form string="Journal Entries" version="7.0">
-            <field name="move_line_ids"/>
+            <field name="move_line_ids">
+<!--
+                <tree string="Journal Items" editable="top">
+                    <field name="journal_id"/>
+                    <field name="partner_id"/>
+                    <field name="debit"/>
+                    <field name="credit"/>
+                </tree>
+-->
+            </field>
         </form>
       </field>
     </record>
@@ -43,10 +52,10 @@
 
         <record id="action_account_live_tree" model="ir.actions.act_window">
             <field name="context">{'search_default_groupby_account': 1, 'view_mode': True}</field>
-            <field name="name">Profit/Loss</field>
+            <field name="name">Live Account Report</field>
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">account.live.line</field>
-            <field name="view_type">form</field>
+            <field name="view_type">tree</field>
             <field name="view_mode">tree,form</field>
             <field name="view_id" ref="view_account_live_tree"/>
             <field name="help" type="html">
@@ -87,7 +96,7 @@
 
 
         <record id="action_account_live_chart" model="ir.actions.act_window">
-            <field name="name">Live Profit/Loss</field>
+            <field name="name">Live Account Report</field>
             <field name="res_model">account.live.chart</field>
             <field name="view_type">form</field>
             <field name="view_mode">tree,form</field>

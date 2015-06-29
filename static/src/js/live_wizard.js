@@ -5,6 +5,7 @@ openerp.account_live_report = function (instance) {
 
     instance.web.account_live_report = instance.web.account_live_report || {};
 
+
     instance.web.views.add('tree_live', 'instance.web.account_live_report.LiveListView');
     instance.web.account_live_report.LiveListView = instance.web.ListView.extend({
         init: function() {
@@ -24,9 +25,9 @@ openerp.account_live_report = function (instance) {
                 self.run_wizard();
             });
             this.$el.parent().find('.oe_live_select_drange').change(function() {
-                    self.current_drange = this.value === '' ? null : parseInt(this.value);
-                    self.do_search(self.last_domain, self.last_context, self.last_group_by);
-                });
+                self.current_drange = this.value === '' ? null : parseInt(this.value);
+                self.do_search(self.last_domain, self.last_context, self.last_group_by);
+            });
             var mod = new instance.web.Model("account.live.line", self.dataset.context, self.dataset.domain);
             defs.push(mod.call("list_drange", []).then(function(result) {
                 self.drange = result;
@@ -52,11 +53,8 @@ openerp.account_live_report = function (instance) {
         search_by_account_drange: function() {
             var self = this;
             var domain = [];
-            if (self.current_account !== null) domain.push(["account_id", "=", self.current_account]);
             if (self.current_drange !== null) domain.push(["drange_id", "=", self.current_drange]);
-            self.last_context["account_id"] = self.current_account === null ? false : self.current_account;
-            if (self.current_drange === null) delete self.last_context["drange_id"];
-            else self.last_context["drange_id"] =  self.current_drange;
+            self.last_context["drange_id"] = self.current_drange === null ? false : self.current_drange;
             var compound_domain = new instance.web.CompoundDomain(self.last_domain, domain);
             self.dataset.domain = compound_domain.eval();
             return self.old_search(compound_domain, self.last_context, self.last_group_by);
@@ -79,8 +77,9 @@ openerp.account_live_report = function (instance) {
                         on_close: function () {
                             mod.call("list_drange", []).then(function(result) {
                                 self.drange = result;
+                                self.current_drange = '';
+                                self.$el.parent().find('.oe_live_select_drange').val('').change();
                             });
-                            self.do_search(self.last_domain, self.last_context, self.last_group_by);
                         }
                     });
                 });

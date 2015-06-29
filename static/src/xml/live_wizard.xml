@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<templates id="livetemplate" xml:space="preserve">
-
+<templates id="template" xml:space="preserve">
+    
     <t t-name="LiveLaunchWizard">
-        <div class="oe_live_wizard">
-            <button class="oe_live_launch_wizard oe_button oe_highlight" href="javascript:void(0)">Launch Wizard</button>
+        <div class="oe_live_wizard ui-toolbar">
+            <button class="oe_live_launch_wizard oe_button oe_highlight" href="javascript:void(0)">Recompute</button>
             <div class="oe_form_dropdown_section">
                 <h4>Time Range :</h4> 
                 <select class="oe_live_select_drange" >

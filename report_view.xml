@@ -5,16 +5,17 @@
         <record id="view_account_live_tree" model="ir.ui.view">
             <field name="name">account.live.line.tree</field>
             <field name="model">account.live.line</field>
+            <field eval="1" name="priority"/>
             <field name="arch" type="xml">
-                <tree string="Live Accounts Rerports" create="false">
+                <tree string="Live Accounts Reports" create="false">
                     <field name="account_id"/>
                     <field name="drange_id" invisible="1"/>
                     <field name="state" invisible="1"/>
                     <field name="date_from"/>
                     <field name="date_to"/>
-                    <field name="debit"/>
-                    <field name="credit"/>
-                    <field name="balance"/>
+                    <field name="debit" sum="Total Debit"/>
+                    <field name="credit" sum="Total Credit"/>
+                    <field name="balance" sum="Total Balance"/>
                 </tree>
             </field>
         </record>
@@ -24,7 +25,18 @@
           <field name="model">account.live.line</field>
           <field name="arch" type="xml">
             <form string="Journal Entries" version="7.0">
-                <field name="move_line_ids"/>
+                <field name="move_line_ids">
+                    <tree string="Journal Items" on_write="on_create_write" version="7.0" editable="top">
+                        <field name="date"/>
+                        <field name="move_id"/>
+                        <field name="ref"/>
+                        <field name="name"/>
+                        <field name="partner_id"/>
+                        <field name="journal_id" groups="base.group_user"/>
+                        <field name="debit" sum="Total Debit"/>
+                        <field name="credit" sum="Total Credit"/>
+                    </tree>
+                </field>
             </form>
           </field>
         </record>
@@ -36,21 +48,21 @@
             <search string="Search Accounts">
               <field name="account_id"/>
               <field name="drange_id"/>
+              <filter name="busy" domain="['&amp;', ('credit', '&gt;', '0.0'), ('debit', '&gt;', '0.0')]" string="Active"/>
               <separator/>
               <group expand="0" string="Group By..." >
-                <filter string="Account" name="groupby_account" domain="[]" context="{'group_by':'account_id'}"/>
+                <filter string="Account" name="account" domain="[]" context="{'group_by':'account_id'}"/>
               </group>
             </search>
           </field>
         </record>
 
         <record id="action_account_live_tree" model="ir.actions.act_window">
-            <field name="context">{'search_default_groupby_account': 1, 'view_mode': True}</field>
+            <field name="context">{'search_default_account': 1, 'search_default_busy': 1, 'view_mode': True}</field>
             <field name="name">Live Accounts Slice Chart</field>
-            <field name="type">ir.actions.act_window</field>
             <field name="res_model">account.live.line</field>
-            <field name="view_mode">tree_live</field>
             <field name="view_id" ref="view_account_live_tree"/>
+            <field name="view_mode">tree_live,form</field>
         </record>
 
 

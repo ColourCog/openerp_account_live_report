@@ -5,7 +5,6 @@ openerp.account_live_report = function (instance) {
 
     instance.web.account_live_report = instance.web.account_live_report || {};
 
-
     instance.web.views.add('tree_live', 'instance.web.account_live_report.LiveListView');
     instance.web.account_live_report.LiveListView = instance.web.ListView.extend({
         init: function() {

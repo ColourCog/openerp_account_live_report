@@ -43,14 +43,14 @@ class account_live_drange(osv.osv_memory):
         period_obj = self.pool.get('account.period')
         res = []
         for p in period_obj.browse(cr, uid, periods, context=context):
-            if not p.special: 
+            if not p.special:
                 res.append((p.date_start, p.date_stop))
         return res
 
     GET_SPLIT = {
         "period": _split_periodically,
     }
-    
+
     _columns = {
         'name': fields.char('Name'),
         'date_from': fields.date('From',required=True),
@@ -72,11 +72,11 @@ class account_live_drange(osv.osv_memory):
             o = {
                 'date_from': c[0],
                 'date_to': c[1],
-                'state': state,                
+                'state': state,
             }
             drange_list.append(o)
         return [self.create(cr, uid, o, context=context) for o in drange_list]
-        
+
 account_live_drange()
 
 
@@ -98,22 +98,22 @@ class account_live_line(osv.osv_memory):
             acc_id = live.account_id.id
             ctx = context.copy()
             # get the move ids for this date range
-            ctx.update({                
+            ctx.update({
                 'date_from': live.drange_id.date_from,
                 'date_to': live.drange_id.date_to,
                 'state': live.drange_id.state,
                 'chart_account_id': acc_id,
             })
             sums = account_obj.out_compute(
-                    cr, 
-                    uid, 
+                    cr,
+                    uid,
                     [acc_id],
                     fields,
                     context=ctx)
-            res[live.id] = {n:sums.get(acc_id, False) and sums[acc_id][n] or 0.0 for n in fields}  
+            res[live.id] = {n:sums.get(acc_id, False) and sums[acc_id][n] or 0.0 for n in fields}
         return res
-        
-        
+
+
     def _get_drange(self, cr, uid, ids, names, args, context):
         """retrieve drange infos """
         move_line_obj = self.pool.get('account.move.line')
@@ -125,7 +125,7 @@ class account_live_line(osv.osv_memory):
                 'date_from': live.drange_id.date_from,
                 'date_to': live.drange_id.date_to,
                 'state': live.drange_id.state,
-            }  
+            }
         return res
 
     def _get_move_lines2(self, cr, uid, ids, names, args, context):
@@ -158,11 +158,11 @@ class account_live_line(osv.osv_memory):
             # get the move ids for this period
             #~ move_line_ids = move_line_obj.search(
             res[live.id] = move_line_obj.search(
-                cr, 
+                cr,
                 uid,
                 [
-                    '&', 
-                    ('date', '>=', live.drange_id.date_from), 
+                    '&',
+                    ('date', '>=', live.drange_id.date_from),
                     ('date', '<=', live.drange_id.date_to),
                     ('account_id', '=', live.account_id.id) ],
                 context=context)
@@ -209,7 +209,7 @@ class account_live_line(osv.osv_memory):
                 string='Balance',
                 digits_compute=dp.get_precision('Account')),
         'move_line_ids': fields.function(
-                _get_move_lines, 
+                _get_move_lines,
                 type='one2many',
                 relation='account.move.line',
                 string="Journal Entries"),
@@ -263,7 +263,7 @@ class account_live_chart(osv.osv_memory):
         'fiscalyear': _get_fiscalyear,
     }
 
-    def onchange_fiscalyear(self, cr, uid, ids, fiscalyear_id=False, 
+    def onchange_fiscalyear(self, cr, uid, ids, fiscalyear_id=False,
                                 context=None):
         res = {}
         if fiscalyear_id:

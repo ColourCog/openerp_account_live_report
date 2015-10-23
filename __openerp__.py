@@ -1,6 +1,7 @@
+# -*- coding: utf-8 -*-
 {
     "name": "Accounting Live Reports",
-    "version": "0.1",
+    "version": "0.3",
     "category": "Accounting",
     "sequence": 60,
     "complexity": "normal",

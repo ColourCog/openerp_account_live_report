@@ -1,10 +1,18 @@
 # -*- coding: utf8 -*-
 # live_report.py
 
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+
 from openerp.osv import osv, fields
 import openerp.addons.decimal_precision as dp
 import logging
 _logger = logging.getLogger(__name__)
+
+
+_SLICE_RANGE = [
+    ('period', 'Periodically'),
+]
 
 
 class account_account(osv.osv):
@@ -21,15 +29,106 @@ class account_account(osv.osv):
 account_account()
 
 
+class account_live_drange(osv.osv_memory):
+    """
+    Account Time Slice
+    """
+    _name        = "account.live.drange"
+    _description = "Account Live Time Range"
+    _order       = 'date_from'
+
+    def _split_periodically(self, cr, uid, periods, context=None):
+        if not context:
+            context = {}
+        period_obj = self.pool.get('account.period')
+        res = []
+        for p in period_obj.browse(cr, uid, periods, context=context):
+            if not p.special:
+                res.append((p.date_start, p.date_stop))
+        return res
+
+    GET_SPLIT = {
+        "period": _split_periodically,
+    }
+
+    _columns = {
+        'name': fields.char('Name'),
+        'date_from': fields.date('From',required=True),
+        'date_to': fields.date('To',required=True),
+        'state': fields.char('State',required=True),
+    }
+
+    def create(self, cr, uid, vals, context=None):
+        if vals.get('name',False) == False:
+            ds = datetime.strptime(vals['date_from'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            de = datetime.strptime(vals['date_to'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            vals['name'] = ds + " - " + de
+        return super(account_live_drange, self).create(cr, uid, vals, context=context)
+
+    def build_ranges(self, cr, uid, periods, slice_to, state, context):
+        drange_list = []
+        dates = self.GET_SPLIT.get(slice_to)(self, cr, uid, periods, context=context)
+        for c in dates :
+            o = {
+                'date_from': c[0],
+                'date_to': c[1],
+                'state': state,
+            }
+            drange_list.append(o)
+        return [self.create(cr, uid, o, context=context) for o in drange_list]
+
+account_live_drange()
+
+
 class account_live_line(osv.osv_memory):
     """
-    Profit/Loss line
+    Live Account Report line
     """
     _name        = "account.live.line"
     _description = "Account Live line"
     _order       = 'account_id'
 
-    def _get_move_lines(self, cr, uid, ids, names, args, context):
+    def _get_sums(self, cr, uid, ids, names, args, context):
+        account_obj = self.pool.get('account.account')
+        if not context:
+            context = {}
+        res = {}
+        fields = ['credit', 'debit', 'balance']
+        for live in self.browse(cr, uid, ids, context=context):
+            acc_id = live.account_id.id
+            ctx = context.copy()
+            # get the move ids for this date range
+            ctx.update({
+                'date_from': live.drange_id.date_from,
+                'date_to': live.drange_id.date_to,
+                'state': live.drange_id.state,
+                'chart_account_id': acc_id,
+            })
+            sums = account_obj.out_compute(
+                    cr,
+                    uid,
+                    [acc_id],
+                    fields,
+                    context=ctx)
+            res[live.id] = {n:sums.get(acc_id, False) and sums[acc_id][n] or 0.0 for n in fields}
+        return res
+
+
+    def _get_drange(self, cr, uid, ids, names, args, context):
+        """retrieve drange infos """
+        move_line_obj = self.pool.get('account.move.line')
+        if not context:
+            context = {}
+        res = {}
+        for live in self.browse(cr, uid, ids, context=context):
+            res[live.id] = {
+                'date_from': live.drange_id.date_from,
+                'date_to': live.drange_id.date_to,
+                'state': live.drange_id.state,
+            }
+        return res
+
+    def _get_move_lines2(self, cr, uid, ids, names, args, context):
         """retrieve all move lines related to this live period
         and account """
         move_line_obj = self.pool.get('account.move.line')
@@ -40,39 +139,97 @@ class account_live_line(osv.osv_memory):
             ctx = context.copy()
             # get the move ids for this date range
             ctx.update({
-                'periods': [live.period_id],
-                'state': live.state,
+                'date_from': live.drange_id.date_from,
+                'date_to': live.drange_id.date_to,
+                'state': live.drange_id.state,
                 'chart_account_id': live.account_id.id,
             })
-            sql = """SELECT l.id
-                        FROM account_move_line l 
-                            WHERE """ + move_line_obj._query_get(cr, uid, context=ctx)
-            cr.execute(sql)
-            
-            res[live.id] = dict(cr.fetchall())
-            
+            res[live.id] = move_line_obj._query_get(cr, uid, context=ctx)
+        return res
+
+    def _get_move_lines(self, cr, uid, ids, name, args, context):
+        """retrieve all move lines related to this live period
+        and account """
+        move_line_obj = self.pool.get('account.move.line')
+        if not context:
+            context = {}
+        res = {}
+        for live in self.browse(cr, uid, ids, context=context):
+            # get the move ids for this period
+            #~ move_line_ids = move_line_obj.search(
+            res[live.id] = move_line_obj.search(
+                cr,
+                uid,
+                [
+                    '&',
+                    ('date', '>=', live.drange_id.date_from),
+                    ('date', '<=', live.drange_id.date_to),
+                    ('account_id', '=', live.account_id.id) ],
+                context=context)
+            #~ move_lines = move_line_obj.browse(cr, uid, move_line_ids, context=context)
+            # filter out moves that don't include live's account in the
+            # transaction
+            #~ in_list = []
+            #~ for line in move_lines:
+                #~ if line.account_id.id == live.account_id.id:
+                    #~ if line.move_id.id not in in_list:
+                        #~ in_list.append(line.move_id.id)
+            #~ res[live.id] = move_line_obj.search(cr, uid,
+                                #~ [('move_id', 'in', in_list)],
+                                #~ context=context)
         return res
 
     _columns = {
+        "name": fields.char('Name'),
         "account_id": fields.many2one('account.account', 'Account',
                                 required=True, ondelete="cascade"),
-        'period_id': fields.many2one('account.period', 'Period',
+        "drange_id": fields.many2one('account.live.drange', 'Time Range',
                                 required=True, ondelete="cascade"),
-        'state': fields.char(string='State'),
-        'credit': fields.float(string='Credit',
-                                digits_compute=dp.get_precision('Account')),
-        'debit': fields.float(string='Debit',
-                                digits_compute=dp.get_precision('Account')),
-        'balance': fields.float(string='Balance',
-                                digits_compute=dp.get_precision('Account')),
-        'move_line_ids': fields.function(_get_move_lines, type='one2many',
-                                relation='account.move.line',
-                                string="Journal Entries"),
+        'date_from': fields.function(
+                _get_drange,
+                type="date",
+                string='From',
+                multi="drange"),
+        'date_to': fields.function(
+                _get_drange,
+                type="date",
+                string='To',
+                multi="drange"),
+        'state': fields.function(
+                _get_drange,
+                type="char",
+                string='State',
+                multi="drange"),
+        'credit': fields.float(
+                string='Credit',
+                digits_compute=dp.get_precision('Account')),
+        'debit': fields.float(
+                string='Debit',
+                digits_compute=dp.get_precision('Account')),
+        'balance': fields.float(
+                string='Balance',
+                digits_compute=dp.get_precision('Account')),
+        'move_line_ids': fields.function(
+                _get_move_lines,
+                type='one2many',
+                relation='account.move.line',
+                string="Journal Entries"),
     }
 
     _sql_constraints = [
-        ('live_line_unique', 'unique (account_id, period_id)', 'Period must be unique per Account !'),
+        ('live_line_unique',
+            'unique (account_id, drange_id)',
+            'Account must be unique per Time Range !'),
     ]
+
+
+    def list_drange(self, cr, uid, context=None):
+        ids = self.pool.get('account.live.drange').search(cr,uid,[], context=context)
+        result = []
+        for drange in self.pool.get('account.live.drange').browse(cr, uid, ids, context=context):
+            result.append((drange.id,drange.name))
+        return result
+
 
 account_live_line()
 
@@ -83,6 +240,12 @@ class account_live_chart(osv.osv_memory):
     """
     _name = "account.live.chart"
     _description = "Account Live Line chart"
+
+    def _get_fiscalyear(self, cr, uid, context=None):
+        """Return default Fiscalyear value"""
+        return self.pool.get('account.fiscalyear').find(
+                                        cr, uid, context=context)
+
     _columns = {
         'fiscalyear': fields.many2one('account.fiscalyear',
                                     'Fiscal year',
@@ -92,14 +255,17 @@ class account_live_chart(osv.osv_memory):
         'target_move': fields.selection([('posted', 'All Posted Entries'),
                                          ('all', 'All Entries'),],
                                          'Target Moves', required=True),
+        'slices': fields.selection( _SLICE_RANGE, string='Slice...', required=True),
     }
 
-    def _get_fiscalyear(self, cr, uid, context=None):
-        """Return default Fiscalyear value"""
-        return self.pool.get('account.fiscalyear').find(
-                                        cr, uid, context=context)
+    _defaults = {
+        'target_move': 'all',
+        'slices': 'period',
+        'fiscalyear': _get_fiscalyear,
+    }
 
-    def onchange_fiscalyear(self, cr, uid, ids, fiscalyear_id=False, context=None):
+    def onchange_fiscalyear(self, cr, uid, ids, fiscalyear_id=False,
+                                context=None):
         res = {}
         if fiscalyear_id:
             start_period = end_period = False
@@ -127,85 +293,49 @@ class account_live_chart(osv.osv_memory):
             res['value'] = {'period_from': False, 'period_to': False}
         return res
 
-    def _create_live_lines(self, cr, uid, period_ids, state, context=None):
+    def create_live_lines(self, cr, uid, ids, context=None):
         """
         Actually create the lines.
         """
         ctx = context.copy()
 
         account_obj = self.pool.get('account.account')
-        live_obj = self.pool.get('account.live.line')
-        account_ids = account_obj.search(cr, uid, [("type","<>","view")])
-        # first delete all
-        to_delete = live_obj.search(cr, uid, [], context=ctx)
-        live_obj.unlink(cr, uid, to_delete, context=ctx)
-        # now create
-        live_list = []
-        for period_id in period_ids:
-            ctx.update({'periods': [period_id]})
-            sums = account_obj.out_compute(cr, uid, account_ids,
-                                            ['debit','credit','balance'],
-                                            context=ctx)
-            for account_id in account_ids:
-                o = {
-                    "account_id": account_id,
-                    "period_id": period_id,
-                    "state": state,
-                    'debit': sums.get(account_id, False) and sums[account_id]['debit'] or 0.0,
-                    'credit': sums.get(account_id, False) and sums[account_id]['credit'] or 0.0,
-                    'balance': sums.get(account_id, False) and sums[account_id]['balance'] or 0.0,
-                }
-                if o['credit'] > 0 or o['debit'] > 0 :
-                    live_list.append(o)
-
-        return [live_obj.create(cr, uid, o, context=context) for o in live_list]
-
-
-
-
-
-    def account_live_chart_open_window(self, cr, uid, ids, context=None):
-        """
-        Opens chart of Live reports
-        @param cr: the current row, from the database cursor,
-        @param uid: the current user’s ID for security checks,
-        @param ids: List of account chart’s IDs
-        @return: dictionary of Open account chart window on given fiscalyear and all Entries or posted entries
-        """
-        mod_obj = self.pool.get('ir.model.data')
-        act_obj = self.pool.get('ir.actions.act_window')
         period_obj = self.pool.get('account.period')
-        fy_obj = self.pool.get('account.fiscalyear')
-        if context is None:
-            context = {}
+        live_obj = self.pool.get('account.live.line')
+        drange_obj = self.pool.get('account.live.drange')
+        periods = []
         data = self.read(cr, uid, ids, [], context=context)[0]
-        result = mod_obj.get_object_reference(cr, uid, 'account_live_report', 'action_account_live_tree')
-        id = result and result[1] or False
-        result = act_obj.read(cr, uid, [id], context=context)[0]
-        fiscalyear_id = data.get('fiscalyear', False) and data['fiscalyear'][0] or False
-        result['periods'] = []
+        slice_to = data.get('slices', "period")
+        state = data.get('target_move', "all")
         if data['period_from'] and data['period_to']:
             period_from = data.get('period_from', False) and data['period_from'][0] or False
             period_to = data.get('period_to', False) and data['period_to'][0] or False
-            result['periods'] = period_obj.build_ctx_periods(cr, uid, period_from, period_to)
-
-        self._create_live_lines(
-                cr, 
-                uid, 
-                result['periods'], 
-                data['target_move'], 
-                context=context)
-
-        result['context'] = str({'fiscalyear': fiscalyear_id, 'periods': result['periods'],
-                                    'state': data['target_move'],
-                                    'search_default_groupby_account': 1})
-        if fiscalyear_id:
-            result['name'] += ':' + fy_obj.read(cr, uid, [fiscalyear_id], context=context)[0]['code']
-        return result
-
-    _defaults = {
-        'target_move': 'all',
-        'fiscalyear': _get_fiscalyear,
-    }
+            periods = period_obj.build_ctx_periods(cr, uid, period_from, period_to)
+        account_ids = account_obj.search(cr, uid, [("type","<>","view")])
+        accounts = account_obj.browse(cr, uid, account_ids, context=context)
+        # first delete all
+        to_delete = drange_obj.search(cr, uid, [], context=ctx)
+        drange_obj.unlink(cr, uid, to_delete, context=ctx)
+        # now create dranges
+        drange_ids = drange_obj.build_ranges(cr, uid, periods, slice_to, state, context=context)
+        drange = drange_obj.browse(cr, uid, drange_ids, context=context)
+        # now create lines
+        live_list = []
+        for d in drange:
+            ctx.update({'date_from': d.date_from, 'date_to':d.date_to})
+            sums = account_obj.out_compute(cr, uid, account_ids,
+                                            ['debit','credit','balance'],
+                                            context=ctx)
+            for acc in accounts:
+                o = {
+                    "name": acc.code + ' for ' + d.name,
+                    "account_id": acc.id,
+                    "drange_id": d.id,
+                    'debit': sums.get(acc.id, False) and sums[acc.id]['debit'] or 0.0,
+                    'credit': sums.get(acc.id, False) and sums[acc.id]['credit'] or 0.0,
+                    'balance': sums.get(acc.id, False) and sums[acc.id]['balance'] or 0.0,
+                }
+                live_list.append(o)
+        return [live_obj.create(cr, uid, o, context=context) for o in live_list]
 
 account_live_chart()

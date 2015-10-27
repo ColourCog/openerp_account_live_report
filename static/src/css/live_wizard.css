@@ -1,0 +1,8 @@
+.openerp .oe_live_wizard {
+    border-bottom: 1px solid #CACACA;
+    padding: 5px;
+}
+.openerp .oe_live_wizard h4 {
+    display:inline;
+    margin-left: 10px;
+}

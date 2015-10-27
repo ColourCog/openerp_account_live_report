@@ -5,63 +5,85 @@
         <record id="view_account_live_tree" model="ir.ui.view">
             <field name="name">account.live.line.tree</field>
             <field name="model">account.live.line</field>
+            <field eval="1" name="priority"/>
             <field name="arch" type="xml">
-                <tree string="Live Profit/Loss" create="false">
+                <tree string="Live Accounts Reports" create="false" version="7.0">
                     <field name="account_id"/>
-                    <field name="period_id"/>
-                    <field name="debit"/>
-                    <field name="credit"/>
-                    <field name="balance"/>
+                    <field name="drange_id" invisible="1"/>
+                    <field name="state" invisible="1"/>
+                    <field name="date_from"/>
+                    <field name="date_to"/>
+                    <field name="debit" sum="Total Debit"/>
+                    <field name="credit" sum="Total Credit"/>
+                    <field name="balance" sum="Total Balance"/>
                 </tree>
             </field>
         </record>
 
-    <record id="view_account_live_form" model="ir.ui.view">
-      <field name="name">account.live.line.form</field>
-      <field name="model">account.live.line</field>
-      <field name="arch" type="xml">
-        <form string="Journal Entries" version="7.0">
-            <field name="move_line_ids">
-<!--
-                <tree string="Journal Items" editable="top">
-                    <field name="journal_id"/>
-                    <field name="partner_id"/>
-                    <field name="debit"/>
-                    <field name="credit"/>
-                </tree>
--->
-            </field>
-        </form>
-      </field>
-    </record>
+        <record id="view_account_live_form" model="ir.ui.view">
+          <field name="name">account.live.line.form</field>
+          <field name="model">account.live.line</field>
+          <field name="arch" type="xml">
+            <form string="Journal Entries" version="7.0">
+                <field name="move_line_ids">
+                    <tree string="Journal Items" >
+                        <field name="date"/>
+                        <field name="move_id"/>
+                        <field name="ref"/>
+                        <field name="name"/>
+                        <field name="partner_id"/>
+                        <field name="journal_id" groups="base.group_user"/>
+                        <field name="debit" sum="Total Debit"/>
+                        <field name="credit" sum="Total Credit"/>
+                    </tree>
+                </field>
+            </form>
+          </field>
+        </record>
+
         <record id="view_account_live_filter" model="ir.ui.view">
             <field name="name">account.live.line.search</field>
             <field name="model">account.live.line</field>
             <field name="arch" type="xml">
             <search string="Search Accounts">
               <field name="account_id"/>
-              <field name="period_id"/>
+              <field name="drange_id"/>
+              <filter name="busy" domain="['|', ('credit', '&gt;', '0.0'), ('debit', '&gt;', '0.0')]" string="Active"/>
               <separator/>
               <group expand="0" string="Group By..." >
-                <filter string="Account" name="groupby_account" domain="[]" context="{'group_by':'account_id'}"/>
+                <filter string="Account" name="account" domain="[]" context="{'group_by':'account_id'}"/>
               </group>
             </search>
           </field>
         </record>
 
+        <record id="account_move_line_graph" model="ir.ui.view">
+            <field name="name">account.live.line.graph</field>
+            <field name="model">account.live.line</field>
+            <field name="arch" type="xml">
+                <graph string="Account Statistics" type="bar">
+                    <field name="name"/>
+                    <field name="account_id"/>
+                    <field name="debit" operator="+"/>
+                    <field name="credit" operator="+"/>
+                </graph>
+            </field>
+        </record>
 
         <record id="action_account_live_tree" model="ir.actions.act_window">
-            <field name="context">{'search_default_groupby_account': 1, 'view_mode': True}</field>
-            <field name="name">Live Account Report</field>
-            <field name="type">ir.actions.act_window</field>
+            <field name="context">{'search_default_account': 1, 'search_default_busy': 1}</field>
+            <field name="name">Live Accounts Slice Chart</field>
             <field name="res_model">account.live.line</field>
-            <field name="view_type">tree</field>
-            <field name="view_mode">tree,form</field>
             <field name="view_id" ref="view_account_live_tree"/>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree_live,form</field>
             <field name="help" type="html">
-                <p>
-                    Generate the report.
-                </p>
+              <p class="oe_view_nocontent_create">
+                Populate the Account slices.
+              </p><p>
+                This view allows you to break down account reports into
+                slices for better debit/credit resolution.
+              </p>
             </field>
         </record>
 
@@ -84,9 +106,10 @@
                             <field name="period_from" class="oe_inline"/> -
                             <field name="period_to" class="oe_inline"/>
                         </div>
+                        <field name="slices"/>
                     </group>
                     <footer>
-                        <button string="Open Charts" name="account_live_chart_open_window" type="object" class="oe_highlight"/>
+                        <button string="Open Charts" name="create_live_lines" type="object" class="oe_highlight"/>
                         or
                         <button string="Cancel" class="oe_link" special="cancel"/>
                     </footer>
@@ -96,7 +119,7 @@
 
 
         <record id="action_account_live_chart" model="ir.actions.act_window">
-            <field name="name">Live Account Report</field>
+            <field name="name">Populate Live Chart</field>
             <field name="res_model">account.live.chart</field>
             <field name="view_type">form</field>
             <field name="view_mode">tree,form</field>
@@ -104,7 +127,7 @@
             <field name="target">new</field>
         </record>
 
-        <menuitem icon="STOCK_INDENT" action="action_account_live_chart"
+        <menuitem icon="STOCK_INDENT" action="action_account_live_tree"
             id="menu_action_account_live_tree2"
             parent="account.menu_finance_charts" />
     </data>

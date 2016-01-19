@@ -25,6 +25,9 @@
           <field name="model">account.live.line</field>
           <field name="arch" type="xml">
             <form string="Journal Entries" version="7.0">
+              <header>
+                <button name="print_report"  string="Print Report" type="object" />
+              </header>
                 <field name="move_line_ids">
                     <tree string="Journal Items" >
                         <field name="date"/>

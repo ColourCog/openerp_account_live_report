@@ -230,15 +230,54 @@ class account_live_line(osv.osv_memory):
             result.append((drange.id,drange.name))
         return result
 
+    
+    def map_data(self, cr, uid, context=None):
+        if not context:
+            context = {}
+        data = []
+        #build headers
+        headers = ['Code','Account']
+        dranges = self.list_drange(cr, uid, context)
+        headers.extend([i[1] for i in dranges])
+        headers.append('Total')
+
+        pos = [i[0] for i in dranges]
+        
+        data.append(headers)
+        # build flattened lines
+        ids = self.search(cr,uid,[], context=context)
+        lines = []
+        line_drange = {}
+        line_codes = {}
+        for line in self.browse(cr, uid, ids, context=context):
+            
+            if not line_drange.get(line.account_id.code):
+                line_drange[line.account_id.code] = {}
+                lines.append((line.account_id.code, line.account_id.name))
+            # we need to put them in the right order. That's the challenge
+            line_drange[line.account_id.code][line.drange_id.id] = line.balance
+        for k in line_drange.keys(): #that would be the account code...
+            line_codes[k] = [line_drange[k][p] for p in pos]
+        
+        
+        for l in lines:
+            a = []
+            a.extend(l)
+            a.extend(line_codes.get(l[0]))
+            a.append(sum(line_codes.get(l[0])))
+            data.append(a)
+        
+        return data
+    
     def print_report(self, cr, uid, ids, context=None):
         return {
             'type': 'ir.actions.report.xml',
-            'report_name': 'account.live.line.report',
+            'report_name': 'account.live.line.print',
             'datas': {
                     'model': 'account.live.line',
                     'id': ids and ids[0] or False,
                     'ids': ids and ids or [],
-                    'report_type': 'pdf'
+                    'report_type': 'txt'
                 },
             'nodestroy': True
         }

@@ -20,11 +20,12 @@ This module creates computed accounting snapshots.
 
 Features:
 ---------
-* Profit/Loss
-* Balance Sheet
+* Configurable periodic calculation of active accounts activity
+* Print out in CSV of calculated accounts report
     """,
     "data": [
       'report_view.xml',
+      'live_report_print.xml',
     ],
     'css': [
         'static/src/css/live_wizard.css',

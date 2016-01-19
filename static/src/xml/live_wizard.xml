@@ -5,6 +5,7 @@
     <t t-name="LiveLaunchWizard">
         <div class="oe_live_wizard ui-toolbar" style="margin-bottom:0px;">
             <button class="oe_live_launch_wizard oe_button oe_highlight" href="javascript:void(0)">Recompute</button>
+            <button class="oe_live_print oe_button oe_highlight" href="javascript:void(0)">Print</button>
             <div class="oe_form_dropdown_section">
                 <h4>Time Range :</h4> 
                 <select class="oe_live_select_drange" >

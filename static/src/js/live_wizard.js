@@ -23,6 +23,9 @@ openerp.account_live_report = function (instance) {
             this.$el.parent().find(".oe_live_launch_wizard").click(function() {
                 self.run_wizard();
             });
+            this.$el.parent().find(".oe_live_print").click(function() {
+                self.print_report();
+            });
             this.$el.parent().find('.oe_live_select_drange').change(function() {
                 self.current_drange = this.value === '' ? null : parseInt(this.value);
                 self.do_search(self.last_domain, self.last_context, self.last_group_by);
@@ -82,6 +85,20 @@ openerp.account_live_report = function (instance) {
                         }
                     });
                 });
+            });
+        },
+        print_report: function(){
+            var self = this;
+            return self.rpc("/web/report", {
+                'type': 'ir.actions.report.xml',
+                'report_name': 'account.live.line.print',
+                'datas': {
+                        'model': 'account.live.line',
+                        'ids': false,
+                        'ids': false,
+                        'report_type': 'txt'
+                    },
+                'nodestroy': true,
             });
         },
     });

@@ -7,9 +7,9 @@
             id="account_live_line_print"
             model="account.live.line"
             name="account.live.line.print"
-            rml="account_live_report/report/live_report_print.rml"
             string="Live Report" 
             usage="default"
+            report_type="txt"
             attachment_use="False"
             />
 

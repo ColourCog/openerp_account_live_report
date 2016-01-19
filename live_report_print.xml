@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+    <data>            
+
+        <report 
+            auto="False"
+            id="account_live_line_print"
+            model="account.live.line"
+            name="account.live.line.print"
+            rml="account_live_report/report/live_report_print.rml"
+            string="Live Report" 
+            usage="default"
+            attachment_use="False"
+            />
+
+    </data>
+</openerp>

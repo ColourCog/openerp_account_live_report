@@ -230,6 +230,18 @@ class account_live_line(osv.osv_memory):
             result.append((drange.id,drange.name))
         return result
 
+    def print_report(self, cr, uid, ids, context=None):
+        return {
+            'type': 'ir.actions.report.xml',
+            'report_name': 'account.live.line.report',
+            'datas': {
+                    'model': 'account.live.line',
+                    'id': ids and ids[0] or False,
+                    'ids': ids and ids or [],
+                    'report_type': 'pdf'
+                },
+            'nodestroy': True
+        }
 
 account_live_line()
 
@@ -320,22 +332,32 @@ class account_live_chart(osv.osv_memory):
         drange_ids = drange_obj.build_ranges(cr, uid, periods, slice_to, state, context=context)
         drange = drange_obj.browse(cr, uid, drange_ids, context=context)
         # now create lines
+        # we need to exclude accounts that have 0 balance in all dranges
         live_list = []
+        exclude_dic = {}
         for d in drange:
             ctx.update({'date_from': d.date_from, 'date_to':d.date_to})
             sums = account_obj.out_compute(cr, uid, account_ids,
                                             ['debit','credit','balance'],
                                             context=ctx)
             for acc in accounts:
+                if not exclude_dic.get(acc.id):
+                    exclude_dic[acc.id] = []
                 o = {
-                    "name": acc.code + ' for ' + d.name,
+                    "name": acc.name + ' for ' + d.name,
                     "account_id": acc.id,
                     "drange_id": d.id,
                     'debit': sums.get(acc.id, False) and sums[acc.id]['debit'] or 0.0,
                     'credit': sums.get(acc.id, False) and sums[acc.id]['credit'] or 0.0,
                     'balance': sums.get(acc.id, False) and sums[acc.id]['balance'] or 0.0,
                 }
-                live_list.append(o)
+                if o['balance'] > 0.0 : #this goes in for sure
+                    live_list.append(o)
+                else:
+                    exclude_dic[acc.id].append(o)
+        for l in exclude_dic.values():
+            if len(l) < len(drange): #at least 1 element has a value
+                live_list.extend(l)
         return [live_obj.create(cr, uid, o, context=context) for o in live_list]
 
 account_live_chart()

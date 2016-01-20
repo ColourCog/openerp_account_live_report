@@ -25,9 +25,6 @@
           <field name="model">account.live.line</field>
           <field name="arch" type="xml">
             <form string="Journal Entries" version="7.0">
-              <header>
-                <button name="print_report"  string="Print Report" type="object" />
-              </header>
                 <field name="move_line_ids">
                     <tree string="Journal Items" >
                         <field name="date"/>
@@ -130,8 +127,40 @@
             <field name="target">new</field>
         </record>
 
+
         <menuitem icon="STOCK_INDENT" action="action_account_live_tree"
             id="menu_action_account_live_tree2"
             parent="account.menu_finance_charts" />
+
+
+
+        <record id="view_account_live_csv" model="ir.ui.view">
+            <field name="name">account.live.csv.form</field>
+            <field name="model">account.live.csv</field>
+            <field name="arch" type="xml">
+                <form string="Print CSV" version="7.0">
+                    <group>
+                        <field name="recompute"/>
+                    </group>
+                    <footer>
+                        <button string="Print Report" name="print_report" type="object" class="oe_highlight"/>
+                        or
+                        <button string="Cancel" class="oe_link" special="cancel"/>
+                    </footer>
+                </form>
+            </field>
+        </record>
+
+
+        <record id="action_account_live_csv" model="ir.actions.act_window">
+            <field name="name">Print Live Chart</field>
+            <field name="res_model">account.live.csv</field>
+            <field name="view_type">form</field>
+            <field name="view_mode">tree,form</field>
+            <field name="view_id" ref="view_account_live_csv"/>
+            <field name="target">new</field>
+        </record>
+
+
     </data>
 </openerp>

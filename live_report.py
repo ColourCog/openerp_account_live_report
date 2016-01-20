@@ -4,8 +4,11 @@
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+from openerp import pooler
 from openerp.osv import osv, fields
 import openerp.addons.decimal_precision as dp
+from openerp.tools.translate import _
+
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -96,7 +99,7 @@ class account_live_line(osv.osv_memory):
         fields = ['credit', 'debit', 'balance']
         for live in self.browse(cr, uid, ids, context=context):
             acc_id = live.account_id.id
-            ctx = context.copy()
+            ctx = dict(context or {}, account_period_prefer_normal=True)
             # get the move ids for this date range
             ctx.update({
                 'date_from': live.drange_id.date_from,
@@ -136,7 +139,7 @@ class account_live_line(osv.osv_memory):
             context = {}
         res = {}
         for live in self.browse(cr, uid, ids, context=context):
-            ctx = context.copy()
+            ctx = dict(context or {}, account_period_prefer_normal=True)
             # get the move ids for this date range
             ctx.update({
                 'date_from': live.drange_id.date_from,
@@ -231,6 +234,58 @@ class account_live_line(osv.osv_memory):
         return result
 
     
+    def compute_data(self, cr, uid, ids, context=None):
+        ctx = dict(context or {}, account_period_prefer_normal=True)
+        account_obj = self.pool.get('account.account')
+        period_obj = self.pool.get('account.period')
+        drange_obj = self.pool.get('account.live.drange')
+        periods = []
+        slice_to = ctx.get('slices', "period")
+        state = ctx.get('target_move', "all")
+        if ctx.get('period_from', False) and ctx.get('period_to', False):
+            period_from = context['period_from']
+            period_to = context['period_to']
+            periods = period_obj.build_ctx_periods(cr, uid, period_from, period_to)
+        account_ids = account_obj.search(cr, uid, [("type","<>","view")])
+        accounts = account_obj.browse(cr, uid, account_ids, context=ctx)
+        # first delete all
+        to_delete = drange_obj.search(cr, uid, [], context=ctx)
+        drange_obj.unlink(cr, uid, to_delete, context=ctx)
+        # now create dranges
+        drange_ids = drange_obj.build_ranges(cr, uid, periods, slice_to, state, context=ctx)
+        drange = drange_obj.browse(cr, uid, drange_ids, context=ctx)
+        # now create lines
+        # we need to exclude accounts that have 0 balance in all dranges
+        live_list = []
+        exclude_dic = {}
+        for d in drange:
+            ctx.update({'date_from': d.date_from, 'date_to':d.date_to})
+            sums = account_obj.out_compute(cr, uid, account_ids,
+                                            ['debit','credit','balance'],
+                                            context=ctx)
+            for acc in accounts:
+                if not exclude_dic.get(acc.id):
+                    exclude_dic[acc.id] = []
+                o = {
+                    "name": acc.name + ' for ' + d.name,
+                    "account_id": acc.id,
+                    "drange_id": d.id,
+                    'debit': sums.get(acc.id, False) and sums[acc.id]['debit'] or 0.0,
+                    'credit': sums.get(acc.id, False) and sums[acc.id]['credit'] or 0.0,
+                    'balance': sums.get(acc.id, False) and sums[acc.id]['balance'] or 0.0,
+                }
+                if o['balance'] > 0.0 : #this goes in for sure
+                    live_list.append(o)
+                else:
+                    exclude_dic[acc.id].append(o)
+        for l in exclude_dic.values():
+            if len(l) < len(drange): #at least 1 element has a value
+                live_list.extend(l)
+        for o in live_list:
+            self.create(cr, uid, o, context=ctx)
+        return True
+
+
     def map_data(self, cr, uid, context=None):
         if not context:
             context = {}
@@ -270,6 +325,9 @@ class account_live_line(osv.osv_memory):
         return data
     
     def print_report(self, cr, uid, ids, context=None):
+        if context.get('recompute'):
+            self.compute_data(cr, uid, ids, context=context)
+            
         return {
             'type': 'ir.actions.report.xml',
             'report_name': 'account.live.line.print',
@@ -277,7 +335,7 @@ class account_live_line(osv.osv_memory):
                     'model': 'account.live.line',
                     'id': ids and ids[0] or False,
                     'ids': ids and ids or [],
-                    'report_type': 'txt'
+                    'report_type': 'csv'
                 },
             'nodestroy': True
         }
@@ -348,55 +406,49 @@ class account_live_chart(osv.osv_memory):
         """
         Actually create the lines.
         """
-        ctx = context.copy()
+        ctx = dict(context or {}, account_period_prefer_normal=True)
+        pool_obj = pooler.get_pool(cr.dbname)
+        live_obj = pool_obj.get('account.live.line')
+        
+        ctx.update({
+            'fiscalyear': self.browse(cr, uid, ids)[0].fiscalyear.id,
+            'period_from': self.browse(cr, uid, ids)[0].period_from.id,
+            'period_to': self.browse(cr, uid, ids)[0].period_to.id,
+            'target_move': self.browse(cr, uid, ids)[0].target_move,
+            'slices': self.browse(cr, uid, ids)[0].slices,
+            })
 
-        account_obj = self.pool.get('account.account')
-        period_obj = self.pool.get('account.period')
-        live_obj = self.pool.get('account.live.line')
-        drange_obj = self.pool.get('account.live.drange')
-        periods = []
-        data = self.read(cr, uid, ids, [], context=context)[0]
-        slice_to = data.get('slices', "period")
-        state = data.get('target_move', "all")
-        if data['period_from'] and data['period_to']:
-            period_from = data.get('period_from', False) and data['period_from'][0] or False
-            period_to = data.get('period_to', False) and data['period_to'][0] or False
-            periods = period_obj.build_ctx_periods(cr, uid, period_from, period_to)
-        account_ids = account_obj.search(cr, uid, [("type","<>","view")])
-        accounts = account_obj.browse(cr, uid, account_ids, context=context)
-        # first delete all
-        to_delete = drange_obj.search(cr, uid, [], context=ctx)
-        drange_obj.unlink(cr, uid, to_delete, context=ctx)
-        # now create dranges
-        drange_ids = drange_obj.build_ranges(cr, uid, periods, slice_to, state, context=context)
-        drange = drange_obj.browse(cr, uid, drange_ids, context=context)
-        # now create lines
-        # we need to exclude accounts that have 0 balance in all dranges
-        live_list = []
-        exclude_dic = {}
-        for d in drange:
-            ctx.update({'date_from': d.date_from, 'date_to':d.date_to})
-            sums = account_obj.out_compute(cr, uid, account_ids,
-                                            ['debit','credit','balance'],
-                                            context=ctx)
-            for acc in accounts:
-                if not exclude_dic.get(acc.id):
-                    exclude_dic[acc.id] = []
-                o = {
-                    "name": acc.name + ' for ' + d.name,
-                    "account_id": acc.id,
-                    "drange_id": d.id,
-                    'debit': sums.get(acc.id, False) and sums[acc.id]['debit'] or 0.0,
-                    'credit': sums.get(acc.id, False) and sums[acc.id]['credit'] or 0.0,
-                    'balance': sums.get(acc.id, False) and sums[acc.id]['balance'] or 0.0,
-                }
-                if o['balance'] > 0.0 : #this goes in for sure
-                    live_list.append(o)
-                else:
-                    exclude_dic[acc.id].append(o)
-        for l in exclude_dic.values():
-            if len(l) < len(drange): #at least 1 element has a value
-                live_list.extend(l)
-        return [live_obj.create(cr, uid, o, context=context) for o in live_list]
+        return live_obj.compute_data(cr, uid, ids, context=ctx)
 
 account_live_chart()
+
+
+class account_live_print(osv.osv_memory):
+    """
+    For Chart of Accounts
+    """
+    _name = "account.live.csv"
+    _description = "Print Live CSV table"
+
+    _columns = {
+        'recompute': fields.boolean('Recompute before ?'),
+    }
+    _defaults = {
+        'recompute': lambda *a: False,
+    }
+
+    def print_report(self, cr, uid, ids, context=None):
+        ctx = dict(context or {}, account_period_prefer_normal=True)
+        pool_obj = pooler.get_pool(cr.dbname)
+        live_obj = pool_obj.get('account.live.line')
+
+        ctx.update({
+            'recompute': self.browse(cr, uid, ids)[0].recompute,
+            })
+
+        return live_obj.print_report(cr, uid, ids, context=ctx)
+
+         
+
+
+account_live_print()

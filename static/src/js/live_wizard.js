@@ -89,16 +89,22 @@ openerp.account_live_report = function (instance) {
         },
         print_report: function(){
             var self = this;
-            return self.rpc("/web/report", {
-                'type': 'ir.actions.report.xml',
-                'report_name': 'account.live.line.print',
-                'datas': {
-                        'model': 'account.live.line',
-                        'ids': false,
-                        'ids': false,
-                        'report_type': 'txt'
-                    },
-                'nodestroy': true,
+            var mod = new instance.web.Model("account.live.line", self.dataset.context, self.dataset.domain);
+            new instance.web.Model("ir.model.data").call("get_object_reference", ["account_live_report", "action_account_live_csv"]).then(function(result) {
+                var additional_context = _.extend({
+                    active_model: self.model
+                });
+                return self.rpc("/web/action/load", {
+                    action_id: result[1],
+                    context: additional_context
+                }).done(function (result) {
+                    result.context = instance.web.pyeval.eval('contexts', [result.context, additional_context]);
+                    result.flags = result.flags || {};
+                    result.flags.new_window = true;
+                    return self.do_action(result, {
+                        on_close: function () {}
+                    });
+                });
             });
         },
     });

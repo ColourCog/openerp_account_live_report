@@ -29,7 +29,7 @@ class report_csv(report_int):
             fwriter.writerow(line)
         final_op = fileobj.getvalue()
         fileobj.close()
-        self.title = "Live Report"
+        self.title = "Balance Report"
         return final_op, 'csv'
         
 report_csv('report.account.live.line.print', 'account.live.line')

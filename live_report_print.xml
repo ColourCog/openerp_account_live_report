@@ -2,16 +2,16 @@
 <openerp>
     <data>            
 
-        <report 
-            auto="False"
-            id="account_live_line_print"
-            model="account.live.line"
-            name="account.live.line.print"
-            string="Live Report" 
-            usage="default"
-            report_type="txt"
-            attachment_use="False"
-            />
-
+        <record id="account_live_line_print" model="ir.actions.report.xml">
+            <field name="auto" eval="False"/>
+            <field name="model">account.live.line</field>
+            <field name="report_name">account.live.line.print</field>
+            <field name="report_type">csv</field>
+            <field name="name">Balance Report</field>
+            <field name="attachment"></field>
+            <field name="attachment_use" eval="False"/>
+            <field name="usage">default</field>
+        </record>
+        
     </data>
 </openerp>

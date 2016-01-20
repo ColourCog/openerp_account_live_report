@@ -72,7 +72,7 @@
 
         <record id="action_account_live_tree" model="ir.actions.act_window">
             <field name="context">{'search_default_account': 1, 'search_default_busy': 1}</field>
-            <field name="name">Live Accounts Slice Chart</field>
+            <field name="name">Periodical Balance Report</field>
             <field name="res_model">account.live.line</field>
             <field name="view_id" ref="view_account_live_tree"/>
             <field name="view_type">form</field>
@@ -109,7 +109,7 @@
                         <field name="slices"/>
                     </group>
                     <footer>
-                        <button string="Open Charts" name="create_live_lines" type="object" class="oe_highlight"/>
+                        <button string="Open Breakdown" name="create_live_lines" type="object" class="oe_highlight"/>
                         or
                         <button string="Cancel" class="oe_link" special="cancel"/>
                     </footer>
